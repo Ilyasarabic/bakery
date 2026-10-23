@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b2118">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<title>Пекарня</title>
+</head>
+<body>
+<header>
+  <div>
+    <h1 id="title">Заказы</h1>
+    <p id="today"></p>
+  </div>
+  <button id="btn-settings" type="button" aria-label="Настройки">Настройки</button>
+</header>
+
+<main>
+  <section id="view-orders" class="view">
+    <p class="stub">Здесь будет окно заказа: точка, товар, количество.</p>
+  </section>
+  <section id="view-raw" class="view">
+    <div id="raw-list"></div>
+
+    <details class="panel">
+      <summary>Записать закупку</summary>
+      <label for="p-raw">Что купили</label>
+      <select id="p-raw"></select>
+      <label for="p-qty">Количество</label>
+      <input id="p-qty" type="text" inputmode="decimal" autocomplete="off">
+      <label for="p-sum">Сколько заплатили всего</label>
+      <input id="p-sum" type="text" inputmode="decimal" autocomplete="off">
+      <p id="p-hint" class="sub"></p>
+      <label for="p-supplier">Поставщик (необязательно)</label>
+      <input id="p-supplier" type="text" autocomplete="off">
+      <button id="btn-purchase" type="button" class="primary">Записать закупку</button>
+    </details>
+
+    <details class="panel">
+      <summary>Добавить новое сырьё</summary>
+      <label for="n-name">Название</label>
+      <input id="n-name" type="text" autocomplete="off" placeholder="Мука «Терек»">
+      <label for="n-unit">Единица измерения</label>
+      <select id="n-unit"><option>кг</option><option>л</option><option>шт</option></select>
+      <label for="n-min">Когда напомнить докупить (остаток ниже)</label>
+      <input id="n-min" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
+      <button id="btn-newraw" type="button" class="primary">Добавить сырьё</button>
+    </details>
+    <p id="raw-status" role="status"></p>
+  </section>
+  <section id="view-products" class="view">
+    <p class="stub">Здесь будут ассортимент и рецепты.</p>
+  </section>
+  <section id="view-points" class="view">
+    <p class="stub">Здесь будут точки сбыта.</p>
+  </section>
+  <section id="view-finance" class="view">
+    <p class="stub">Здесь будут выручка, себестоимость и прибыль.</p>
+  </section>
+
+  <section id="view-settings" class="view">
+    <label for="api-url">Адрес скрипта (Web app URL)</label>
+    <input id="api-url" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec">
+    <label for="api-key">Ключ доступа</label>
+    <input id="api-key" type="password" autocomplete="off">
+    <div class="row">
+      <button id="btn-save" type="button" class="primary">Сохранить</button>
+      <button id="btn-check" type="button">Проверить связь</button>
+    </div>
+    <p id="status" role="status"></p>
+  </section>
+</main>
+
+<nav>
+  <button type="button" data-view="orders">Заказы</button>
+  <button type="button" data-view="raw">Сырьё</button>
+  <button type="button" data-view="products">Ассортимент</button>
+  <button type="button" data-view="points">Точки</button>
+  <button type="button" data-view="finance">Финансы</button>
+</nav>
+
+<script src="app.js"></script>
+</body>
+</html>
