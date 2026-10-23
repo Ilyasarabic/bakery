@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s);
 const TITLES = { orders: 'Заказы', raw: 'Сырьё', products: 'Ассортимент', points: 'Точки', finance: 'Финансы', settings: 'Настройки' };
-const state = { raw: [] };
+const state = { raw: [], products: [], recipes: [], points: [], orders: [] };
 
 function cfg() {
   return { url: localStorage.getItem('api_url') || '', key: localStorage.getItem('api_key') || '' };
@@ -40,6 +40,9 @@ function show(name) {
   $('#title').textContent = TITLES[name];
   localStorage.setItem('last_view', name);
   if (name === 'raw') loadRaw();
+  if (name === 'products') loadProducts();
+  if (name === 'points') loadPoints();
+  if (name === 'orders') loadOrders();
 }
 
 // ---------- Сырьё ----------
@@ -104,6 +107,242 @@ async function addPurchase() {
   } catch (e) { setStatus('#raw-status', e.message, 'bad'); }
 }
 
+// ---------- Ассортимент ----------
+
+async function loadProducts() {
+  try {
+    const [raw, prod, rec] = await Promise.all(['Сырьё', 'Ассортимент', 'Рецепты'].map(sheet => api('list', { sheet })));
+    state.raw = raw.rows; state.products = prod.rows; state.recipes = rec.rows;
+  } catch (e) {
+    $('#prod-list').replaceChildren(h('p', { class: 'bad' }, e.message));
+    return;
+  }
+  renderProducts();
+}
+
+const linesOf = id => state.recipes.filter(r => String(r['ID товара']) === String(id));
+const rawById = id => state.raw.find(r => String(r['ID']) === String(id));
+const rawPrice = id => Number(rawById(id)?.['Цена за ед.']) || 0;
+
+function costPerLoaf(p) {
+  const mix = Number(p['Булок в замесе']) || 0;
+  if (!mix) return 0;
+  const total = linesOf(p['ID']).reduce((s, l) => s + (Number(l['Кол-во на замес']) || 0) * rawPrice(l['ID сырья']), 0);
+  return total / mix;
+}
+
+function renderProducts() {
+  const box = $('#prod-list');
+  if (!state.products.length) {
+    box.replaceChildren(h('p', { class: 'stub' }, 'Хлеба пока нет. Сначала добавьте сырьё, затем хлеб ниже.'));
+  } else {
+    box.replaceChildren(...state.products.map(p => {
+      const cost = costPerLoaf(p), price = Number(p['Цена']) || 0;
+      const noPrice = linesOf(p['ID']).some(l => !(rawPrice(l['ID сырья']) > 0));
+      const el = h('div', { class: 'item tap' },
+        h('div', {},
+          h('b', {}, p['Название']),
+          h('span', { class: 'sub' }, `Себестоимость ${fmt(cost)} · цена ${fmt(price)}`),
+          noPrice ? h('span', { class: 'sub bad' }, 'У части сырья нет цены: запишите закупку.') : ''),
+        h('div', { class: 'qty' }, `${price - cost >= 0 ? '+' : ''}${fmt(price - cost)}`, h('span', { class: 'sub' }, 'за булку')));
+      el.addEventListener('click', () => editProduct(p));
+      return el;
+    }));
+  }
+  $('#c-prod').replaceChildren(...state.products.map(p => h('option', { value: p['ID'] }, p['Название'])));
+  renderCalc();
+}
+
+function addLine(rawId = '', qty = '') {
+  const sel = h('select', { class: 'l-raw' }, ...state.raw.map(r => h('option', { value: r['ID'] }, `${r['Название']} (${r['Ед.']})`)));
+  if (rawId !== '') sel.value = rawId;
+  const q = h('input', { class: 'l-qty', type: 'text', inputmode: 'decimal', placeholder: 'Кол-во', autocomplete: 'off' });
+  q.value = qty;
+  const del = h('button', { type: 'button', class: 'ghost', 'aria-label': 'Убрать' }, '×');
+  const row = h('div', { class: 'line' }, sel, q, del);
+  del.addEventListener('click', () => row.remove());
+  $('#pr-lines').append(row);
+}
+
+function resetProductForm() {
+  ['#pr-id', '#pr-name', '#pr-weight', '#pr-price', '#pr-mix'].forEach(s => { $(s).value = ''; });
+  $('#pr-lines').replaceChildren();
+  $('#prod-summary').textContent = 'Добавить хлеб';
+}
+
+function editProduct(p) {
+  resetProductForm();
+  $('#pr-id').value = p['ID']; $('#pr-name').value = p['Название'];
+  $('#pr-weight').value = p['Вес булки, г']; $('#pr-price').value = p['Цена']; $('#pr-mix').value = p['Булок в замесе'];
+  linesOf(p['ID']).forEach(l => addLine(l['ID сырья'], l['Кол-во на замес']));
+  $('#prod-summary').textContent = 'Изменить: ' + p['Название'];
+  const d = $('#prod-panel');
+  d.open = true;
+  d.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function saveProduct() {
+  const lines = [...document.querySelectorAll('#pr-lines .line')]
+    .map(r => ({ rawId: r.querySelector('.l-raw').value, qty: num(r.querySelector('.l-qty').value) }))
+    .filter(l => l.rawId !== '' && l.qty > 0);
+  const name = $('#pr-name').value.trim(), price = num($('#pr-price').value), mix = num($('#pr-mix').value), weight = num($('#pr-weight').value) || 0;
+  if (!name) return setStatus('#prod-status', 'Введите название.', 'bad');
+  if (!(price >= 0)) return setStatus('#prod-status', 'Введите цену продажи.', 'bad');
+  if (!(mix > 0)) return setStatus('#prod-status', 'Укажите, сколько булок получается из замеса.', 'bad');
+  if (!lines.length) return setStatus('#prod-status', 'Добавьте хотя бы один ингредиент.', 'bad');
+  setStatus('#prod-status', 'Сохраняю…');
+  try {
+    await api('saveProduct', { id: $('#pr-id').value, name, weight, price, mix, lines });
+    resetProductForm();
+    $('#prod-panel').open = false;
+    setStatus('#prod-status', `Сохранено: ${name}.`, 'ok');
+    loadProducts();
+  } catch (e) { setStatus('#prod-status', e.message, 'bad'); }
+}
+
+function renderCalc() {
+  const p = state.products.find(x => String(x['ID']) === $('#c-prod').value);
+  const n = num($('#c-n').value);
+  const out = $('#c-out');
+  if (!p || !(n > 0)) return out.replaceChildren();
+  const mix = Number(p['Булок в замесе']) || 1;
+  out.replaceChildren(...linesOf(p['ID']).map(l => {
+    const r = rawById(l['ID сырья']);
+    const perMix = Number(l['Кол-во на замес']) || 0;
+    const unit = r ? r['Ед.'] : '';
+    const small = unit === 'кг' || unit === 'л';
+    const perLoaf = small ? `${fmt(perMix / mix * 1000)} ${unit === 'кг' ? 'г' : 'мл'}` : `${fmt(perMix / mix)} ${unit}`;
+    return h('div', { class: 'calc-row' },
+      h('span', {}, r ? r['Название'] : '?'),
+      h('span', { class: 'qty' }, `${fmt(perMix * n / mix)} ${unit}`, h('span', { class: 'sub' }, `на булку ${perLoaf}`)));
+  }));
+}
+
+// ---------- Точки ----------
+
+async function loadPoints() {
+  try {
+    state.points = (await api('list', { sheet: 'Точки' })).rows;
+  } catch (e) {
+    $('#pt-list').replaceChildren(h('p', { class: 'bad' }, e.message));
+    return;
+  }
+  const box = $('#pt-list');
+  if (!state.points.length) {
+    box.replaceChildren(h('p', { class: 'stub' }, 'Точек пока нет. Добавьте первую ниже.'));
+    return;
+  }
+  box.replaceChildren(...state.points.map(pt => {
+    const el = h('div', { class: 'item tap' },
+      h('div', {}, h('b', {}, pt['Название']), h('span', { class: 'sub' }, [pt['Село'], pt['Телефон'], pt['Заметка']].filter(Boolean).join(' · '))));
+    el.addEventListener('click', () => editPoint(pt));
+    return el;
+  }));
+}
+
+function resetPointForm() {
+  ['#pt-id', '#pt-name', '#pt-village', '#pt-phone', '#pt-note'].forEach(s => { $(s).value = ''; });
+  $('#pt-summary').textContent = 'Добавить точку';
+}
+
+function editPoint(pt) {
+  $('#pt-id').value = pt['ID']; $('#pt-name').value = pt['Название']; $('#pt-village').value = pt['Село'];
+  $('#pt-phone').value = pt['Телефон']; $('#pt-note').value = pt['Заметка'];
+  $('#pt-summary').textContent = 'Изменить: ' + pt['Название'];
+  const d = $('#pt-panel');
+  d.open = true;
+  d.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function savePoint() {
+  const name = $('#pt-name').value.trim();
+  if (!name) return setStatus('#pt-status', 'Введите название.', 'bad');
+  const fields = { 'Название': name, 'Село': $('#pt-village').value.trim(), 'Телефон': $('#pt-phone').value.trim(), 'Заметка': $('#pt-note').value.trim() };
+  const id = $('#pt-id').value;
+  try {
+    if (id) await api('update', { sheet: 'Точки', id, fields });
+    else await api('add', { sheet: 'Точки', row: fields });
+    resetPointForm();
+    $('#pt-panel').open = false;
+    setStatus('#pt-status', `Сохранено: ${name}.`, 'ok');
+    loadPoints();
+  } catch (e) { setStatus('#pt-status', e.message, 'bad'); }
+}
+
+// ---------- Заказы ----------
+
+const calcRow = (label, value) => h('div', { class: 'calc-row' }, h('span', {}, label), h('span', { class: 'qty' }, value));
+
+async function loadOrders() {
+  try {
+    const [pt, pr, rc, rw, od] = await Promise.all(['Точки', 'Ассортимент', 'Рецепты', 'Сырьё', 'Заказы'].map(sheet => api('list', { sheet })));
+    state.points = pt.rows; state.products = pr.rows; state.recipes = rc.rows; state.raw = rw.rows; state.orders = od.rows;
+  } catch (e) {
+    $('#o-list').replaceChildren(h('p', { class: 'bad' }, e.message));
+    return;
+  }
+  const fill = (sel, items) => {
+    const old = $(sel).value;
+    $(sel).replaceChildren(...items);
+    if (old) $(sel).value = old;
+  };
+  fill('#o-point', state.points.map(pt => h('option', { value: pt['ID'] }, pt['Название'])));
+  fill('#o-prod', state.products.map(p => h('option', { value: p['ID'] }, p['Название'])));
+  if (!$('#o-date').value) $('#o-date').value = today();
+  updatePreview();
+  renderDay();
+}
+
+function updatePreview() {
+  const p = state.products.find(x => String(x['ID']) === $('#o-prod').value);
+  const qty = num($('#o-qty').value);
+  const out = $('#o-preview');
+  if (!p || !(qty > 0)) return out.replaceChildren();
+  const revenue = (Number(p['Цена']) || 0) * qty, cost = costPerLoaf(p) * qty;
+  const mix = Number(p['Булок в замесе']) || 1;
+  const short = linesOf(p['ID']).map(l => {
+    const r = rawById(l['ID сырья']);
+    const need = (Number(l['Кол-во на замес']) || 0) * qty / mix;
+    const have = Number(r?.['Остаток']) || 0;
+    return r && have < need ? `${r['Название']}: нужно ${fmt(need)}, есть ${fmt(have)} ${r['Ед.']}` : null;
+  }).filter(Boolean);
+  out.replaceChildren(calcRow('Выручка', fmt(revenue)), calcRow('Себестоимость', fmt(cost)), calcRow('Прибыль', fmt(revenue - cost)),
+    ...short.map(t => h('p', { class: 'bad' }, 'Не хватает сырья. ' + t)));
+}
+
+function renderDay() {
+  const date = $('#o-date').value;
+  const day = state.orders.filter(o => o['Дата'] === date);
+  const sum = k => day.reduce((s, o) => s + (Number(o[k]) || 0), 0);
+  $('#o-totals').replaceChildren(calcRow('Булок сдано', fmt(sum('Кол-во'))), calcRow('Выручка', fmt(sum('Выручка'))),
+    calcRow('Себестоимость', fmt(sum('Себестоимость'))), calcRow('Прибыль', fmt(sum('Прибыль'))));
+  $('#o-list').replaceChildren(...(day.length ? day.map(o => h('div', { class: 'item' },
+    h('div', {}, h('b', {}, o['Точка']), h('span', { class: 'sub' }, `${o['Товар']} × ${fmt(Number(o['Кол-во']) || 0)}`)),
+    h('div', { class: 'qty' }, fmt(Number(o['Выручка']) || 0), h('span', { class: 'sub' }, `прибыль ${fmt(Number(o['Прибыль']) || 0)}`)))
+  ) : [h('p', { class: 'stub' }, 'В этот день заказов нет.')]));
+}
+
+async function placeOrder() {
+  const qty = num($('#o-qty').value);
+  if (!$('#o-point').value) return setStatus('#order-status', 'Сначала добавьте точку.', 'bad');
+  if (!$('#o-prod').value) return setStatus('#order-status', 'Сначала добавьте хлеб.', 'bad');
+  if (!(qty > 0)) return setStatus('#order-status', 'Введите количество.', 'bad');
+  const btn = $('#btn-order');
+  btn.disabled = true;
+  setStatus('#order-status', 'Сохраняю…');
+  try {
+    const { row } = await api('createOrder', { date: $('#o-date').value, pointId: $('#o-point').value, productId: $('#o-prod').value, qty });
+    $('#o-qty').value = '';
+    const warn = row.negative && row.negative.length ? ` Остаток ушёл в минус: ${row.negative.join(', ')}.` : '';
+    setStatus('#order-status', `Заказ сохранён: выручка ${fmt(row['Выручка'])}, прибыль ${fmt(row['Прибыль'])}.${warn}`, warn ? 'bad' : 'ok');
+    loadOrders();
+  } catch (e) {
+    setStatus('#order-status', e.message, 'bad');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ---------- Запуск ----------
 
 function init() {
@@ -131,6 +370,18 @@ function init() {
   ['#p-qty', '#p-sum', '#p-raw'].forEach(s => $(s).addEventListener('input', updateHint));
   $('#btn-newraw').addEventListener('click', addRaw);
   $('#btn-purchase').addEventListener('click', addPurchase);
+
+  $('#btn-addline').addEventListener('click', () => addLine());
+  $('#btn-saveprod').addEventListener('click', saveProduct);
+  $('#btn-cancelprod').addEventListener('click', () => { resetProductForm(); $('#prod-panel').open = false; });
+  $('#c-prod').addEventListener('change', renderCalc);
+  $('#c-n').addEventListener('input', renderCalc);
+
+  ['input', 'change'].forEach(ev => { $('#o-prod').addEventListener(ev, updatePreview); $('#o-qty').addEventListener(ev, updatePreview); });
+  $('#o-date').addEventListener('change', renderDay);
+  $('#btn-order').addEventListener('click', placeOrder);
+  $('#btn-savept').addEventListener('click', savePoint);
+  $('#btn-cancelpt').addEventListener('click', () => { resetPointForm(); $('#pt-panel').open = false; });
 
   show(c.url && c.key ? (localStorage.getItem('last_view') || 'orders') : 'settings');
 

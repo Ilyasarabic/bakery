@@ -21,7 +21,21 @@
 
 <main>
   <section id="view-orders" class="view">
-    <p class="stub">Здесь будет окно заказа: точка, товар, количество.</p>
+    <label for="o-date">Дата</label>
+    <input id="o-date" type="date">
+    <label for="o-point">Точка</label>
+    <select id="o-point"></select>
+    <label for="o-prod">Хлеб</label>
+    <select id="o-prod"></select>
+    <label for="o-qty">Количество</label>
+    <input id="o-qty" type="text" inputmode="decimal" autocomplete="off">
+    <div id="o-preview"></div>
+    <button id="btn-order" type="button" class="primary wide">Сдать заказ</button>
+    <p id="order-status" role="status"></p>
+    <h2>Итог за выбранный день</h2>
+    <div id="o-totals"></div>
+    <h2>Заказы за день</h2>
+    <div id="o-list"></div>
   </section>
   <section id="view-raw" class="view">
     <div id="raw-list"></div>
@@ -53,10 +67,53 @@
     <p id="raw-status" role="status"></p>
   </section>
   <section id="view-products" class="view">
-    <p class="stub">Здесь будут ассортимент и рецепты.</p>
+    <div id="prod-list"></div>
+
+    <details class="panel" id="prod-panel">
+      <summary id="prod-summary">Добавить хлеб</summary>
+      <input type="hidden" id="pr-id">
+      <label for="pr-name">Название</label>
+      <input id="pr-name" type="text" autocomplete="off" placeholder="Чиабатта">
+      <label for="pr-weight">Вес одной булки, г</label>
+      <input id="pr-weight" type="text" inputmode="decimal" autocomplete="off">
+      <label for="pr-price">Цена продажи за булку</label>
+      <input id="pr-price" type="text" inputmode="decimal" autocomplete="off">
+      <label for="pr-mix">Сколько булок получается из одного замеса</label>
+      <input id="pr-mix" type="text" inputmode="decimal" autocomplete="off">
+      <label>Рецепт на один замес</label>
+      <div id="pr-lines"></div>
+      <button id="btn-addline" type="button" class="ghost">+ Ингредиент</button>
+      <button id="btn-saveprod" type="button" class="primary">Сохранить хлеб</button>
+      <button id="btn-cancelprod" type="button" class="ghost">Отмена</button>
+    </details>
+
+    <details class="panel">
+      <summary>Калькулятор граммовок</summary>
+      <label for="c-prod">Хлеб</label>
+      <select id="c-prod"></select>
+      <label for="c-n">Сколько булок</label>
+      <input id="c-n" type="text" inputmode="decimal" autocomplete="off">
+      <div id="c-out"></div>
+    </details>
+    <p id="prod-status" role="status"></p>
   </section>
   <section id="view-points" class="view">
-    <p class="stub">Здесь будут точки сбыта.</p>
+    <div id="pt-list"></div>
+    <details class="panel" id="pt-panel">
+      <summary id="pt-summary">Добавить точку</summary>
+      <input type="hidden" id="pt-id">
+      <label for="pt-name">Название</label>
+      <input id="pt-name" type="text" autocomplete="off" placeholder="Магазин «Продукты»">
+      <label for="pt-village">Село</label>
+      <input id="pt-village" type="text" autocomplete="off">
+      <label for="pt-phone">Телефон</label>
+      <input id="pt-phone" type="text" inputmode="tel" autocomplete="off">
+      <label for="pt-note">Заметка</label>
+      <input id="pt-note" type="text" autocomplete="off">
+      <button id="btn-savept" type="button" class="primary">Сохранить точку</button>
+      <button id="btn-cancelpt" type="button" class="ghost">Отмена</button>
+    </details>
+    <p id="pt-status" role="status"></p>
   </section>
   <section id="view-finance" class="view">
     <p class="stub">Здесь будут выручка, себестоимость и прибыль.</p>
