@@ -25,28 +25,34 @@
 
 <main>
   <section id="view-orders" class="view">
-    <div class="receipt-wrap">
-      <div class="receipt">
-        <div class="rc-head"><b>Касса дня</b><span id="rc-date"></span></div>
-        <div class="rc-row"><span>Выручка</span><b id="h-rev">0</b></div>
-        <div class="rc-row"><span>Себестоимость</span><b id="h-cost">0</b></div>
-        <div class="rc-row"><span>Булок сдано</span><b id="h-qty">0</b></div>
-        <div class="rc-total"><span>Прибыль</span><strong id="h-profit">0</strong></div>
+    <div class="o-receipt">
+      <div class="receipt-wrap">
+        <div class="receipt">
+          <div class="rc-head"><b>Касса дня</b><span id="rc-date"></span></div>
+          <div class="rc-row"><span>Выручка</span><b id="h-rev">0</b></div>
+          <div class="rc-row"><span>Себестоимость</span><b id="h-cost">0</b></div>
+          <div class="rc-row"><span>Булок сдано</span><b id="h-qty">0</b></div>
+          <div class="rc-total"><span>Прибыль</span><strong id="h-profit">0</strong></div>
+        </div>
       </div>
     </div>
-    <label for="o-date">Дата</label>
-    <input id="o-date" type="date">
-    <label for="o-point">Точка</label>
-    <select id="o-point"></select>
-    <label for="o-prod">Хлеб</label>
-    <select id="o-prod"></select>
-    <label for="o-qty">Количество</label>
-    <input id="o-qty" type="text" inputmode="decimal" autocomplete="off">
-    <div id="o-preview"></div>
-    <button id="btn-order" type="button" class="primary">Сдать заказ</button>
-    <p id="order-status" role="status"></p>
-    <h2>Заказы за день</h2>
-    <div id="o-list"></div>
+    <div class="o-form">
+      <label for="o-date">Дата</label>
+      <input id="o-date" type="date">
+      <label for="o-point">Точка</label>
+      <select id="o-point"></select>
+      <label for="o-prod">Хлеб</label>
+      <select id="o-prod"></select>
+      <label for="o-qty">Количество</label>
+      <input id="o-qty" type="text" inputmode="decimal" autocomplete="off">
+      <div id="o-preview"></div>
+      <button id="btn-order" type="button" class="primary">Сдать заказ</button>
+      <p id="order-status" role="status"></p>
+    </div>
+    <div class="o-day">
+      <h2>Заказы за день</h2>
+      <div id="o-list"></div>
+    </div>
   </section>
   <section id="view-raw" class="view">
     <div id="raw-list"></div>
@@ -144,6 +150,7 @@
 </main>
 
 <nav>
+  <div class="brand">Пекарня</div>
   <button type="button" data-view="orders"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l2 4v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7l2-4Z"/><path d="M4 7h16"/><path d="M9 11a3 3 0 0 0 6 0"/></svg></i><span>Заказы</span></button>
   <button type="button" data-view="raw"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg></i><span>Сырьё</span></button>
   <button type="button" data-view="products"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1a2 2 0 0 1-1 1.7V18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-4.3A2 2 0 0 1 5 12v-1Z"/><path d="m10 10-1 3M14 10l-1 3"/></svg></i><span>Ассортимент</span></button>

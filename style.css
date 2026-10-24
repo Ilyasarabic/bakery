@@ -1,6 +1,7 @@
 :root {
   --band: #17402f;
   --sheet: #fafbf8;
+  --page: #edf1ec;
   --ink: #14201a;
   --muted: #627068;
   --line: #e1e7df;
@@ -16,6 +17,7 @@
   :root {
     --band: #0c2a1e;
     --sheet: #111a15;
+    --page: #0b120e;
     --ink: #e6eee8;
     --muted: #94a69b;
     --line: #26352c;
@@ -154,3 +156,63 @@ nav button.active i { background: var(--yellow); color: var(--on-yellow); }
 nav button.active span { font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.brand { display: none; }
+
+/* ---------- компьютер: панель управления ---------- */
+@media (min-width: 900px) {
+  body { background: var(--page); }
+
+  nav {
+    top: 0; right: auto; width: 248px; display: flex; flex-direction: column; gap: 6px;
+    padding: 28px 16px; background: var(--band); border-top: 0;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .brand { display: block; padding: 6px 12px 28px; color: #f2f7f3; font: 600 21px/1 var(--display); }
+  nav button {
+    flex-direction: row; justify-content: flex-start; gap: 12px; width: 100%; height: 48px;
+    padding: 0 12px; border-radius: 14px; color: #c4d6ca;
+  }
+  nav button i, nav button.active i { width: auto; height: auto; background: transparent; color: inherit; }
+  nav button span, nav button.active span { font-size: 15px; font-weight: 600; }
+  nav button:hover:not(.active) { background: rgba(255,255,255,.09); }
+  nav button.active { background: var(--yellow); color: var(--on-yellow); }
+
+  header { margin-left: 248px; background: transparent; color: var(--ink); padding: 32px 40px 8px; }
+  h1 { font-size: 30px; }
+  #today { opacity: .6; }
+  #btn-settings { background: var(--sheet); color: var(--ink); border: 1px solid var(--line); }
+  main { margin: 0 0 0 248px; padding: 16px 40px 60px; background: transparent; border-radius: 0; min-height: 0; }
+  .view { max-width: 1180px; margin: 0; }
+  #view-settings.active { max-width: 520px; }
+  .item.tap:hover { background: var(--field); }
+
+  /* блоки в виде панелей */
+  .o-form, .o-day, #raw-list, #prod-list, #pt-list, details.panel {
+    background: var(--sheet); border: 1px solid var(--line); border-radius: 18px;
+  }
+  .o-form { padding: 22px; }
+  .o-form > label:first-child { margin-top: 0; }
+  .o-day, #raw-list, #prod-list, #pt-list { padding: 6px 22px; }
+  .o-day h2 { margin-top: 16px; }
+  .o-day .item:last-child, #raw-list .item:last-child, #prod-list .item:last-child, #pt-list .item:last-child { border-bottom: 0; }
+  details.panel { margin-top: 0; padding: 0 22px 22px; }
+
+  /* Заказы: форма слева, чек и список справа */
+  #view-orders.active {
+    display: grid; grid-template-columns: 400px minmax(0, 1fr);
+    grid-template-areas: "form receipt" "form day"; gap: 24px 32px; align-items: start;
+  }
+  .o-form { grid-area: form; }
+  .o-receipt { grid-area: receipt; max-width: 520px; }
+  .o-day { grid-area: day; }
+
+  /* Сырьё, ассортимент, точки: список слева, формы справа */
+  #view-raw.active, #view-products.active, #view-points.active {
+    display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px 28px; align-items: start;
+  }
+  #raw-list, #prod-list, #pt-list { grid-column: 1; grid-row: 1 / span 4; }
+  #view-raw > details, #view-products > details, #view-points > details,
+  #raw-status, #prod-status, #pt-status { grid-column: 2; }
+  #raw-status:empty, #prod-status:empty, #pt-status:empty { display: none; }
+}
