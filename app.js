@@ -314,8 +314,11 @@ function renderDay() {
   const date = $('#o-date').value;
   const day = state.orders.filter(o => o['Дата'] === date);
   const sum = k => day.reduce((s, o) => s + (Number(o[k]) || 0), 0);
-  $('#o-totals').replaceChildren(calcRow('Булок сдано', fmt(sum('Кол-во'))), calcRow('Выручка', fmt(sum('Выручка'))),
-    calcRow('Себестоимость', fmt(sum('Себестоимость'))), calcRow('Прибыль', fmt(sum('Прибыль'))));
+  $('#h-rev').textContent = fmt(sum('Выручка'));
+  $('#h-cost').textContent = fmt(sum('Себестоимость'));
+  $('#h-qty').textContent = fmt(sum('Кол-во'));
+  $('#h-profit').textContent = fmt(sum('Прибыль'));
+  $('#rc-date').textContent = date ? new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '';
   $('#o-list').replaceChildren(...(day.length ? day.map(o => h('div', { class: 'item' },
     h('div', {}, h('b', {}, o['Точка']), h('span', { class: 'sub' }, `${o['Товар']} × ${fmt(Number(o['Кол-во']) || 0)}`)),
     h('div', { class: 'qty' }, fmt(Number(o['Выручка']) || 0), h('span', { class: 'sub' }, `прибыль ${fmt(Number(o['Прибыль']) || 0)}`)))
@@ -346,7 +349,7 @@ async function placeOrder() {
 // ---------- Запуск ----------
 
 function init() {
-  $('#today').textContent = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  $('#today').textContent = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
   document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
   $('#btn-settings').addEventListener('click', () => show('settings'));
