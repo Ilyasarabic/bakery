@@ -158,12 +158,42 @@
       <div><label for="f-to">По</label><input id="f-to" type="date"></div>
     </div>
     <div id="f-kpi" class="kpi"></div>
-    <p class="sub f-note">Выручка уже за вычетом возвратов. Себестоимость — сырьё, ушедшее в сданный хлеб. «Закуплено сырья» — деньги, потраченные на закупки за период.</p>
-    <h2>Прибыль по дням</h2>
+    <p class="sub f-note">Чистая прибыль = выручка − себестоимость − расходы за период. Выручка уже за вычетом возвратов. «Закуплено сырья» — деньги, потраченные на закупки, в прибыль не входит (сырьё считается через себестоимость).</p>
+
+    <details class="panel" id="exp-panel">
+      <summary>Записать расход</summary>
+      <label for="e-date">Дата</label>
+      <input id="e-date" type="date">
+      <label for="e-cat">Категория</label>
+      <select id="e-cat">
+        <option>Электричество</option><option>Газ</option><option>Зарплата</option>
+        <option>Бензин и развоз</option><option>Ремонт</option><option>Аренда</option>
+        <option>Упаковка</option><option>Прочее</option>
+      </select>
+      <div id="e-eq-wrap" hidden>
+        <label for="e-eq">Какое оборудование</label>
+        <select id="e-eq">
+          <option>Тестомес</option><option>Печь</option><option>Расстоечный шкаф</option>
+          <option>Холодильник</option><option>Другое</option>
+        </select>
+      </div>
+      <label for="e-desc">Описание (необязательно)</label>
+      <input id="e-desc" type="text" autocomplete="off" placeholder="Например: сменили ТЭН влагонагревателя">
+      <label for="e-sum">Сумма</label>
+      <input id="e-sum" type="text" inputmode="decimal" autocomplete="off">
+      <button id="btn-expense" type="button" class="primary">Записать расход</button>
+      <p id="exp-status" role="status"></p>
+    </details>
+
+    <h2>Чистая прибыль по дням</h2>
     <div id="f-chart" class="bars"></div>
     <div class="f-split">
       <div><h2>По точкам</h2><div id="f-points"></div></div>
       <div><h2>По хлебам</h2><div id="f-products"></div></div>
+    </div>
+    <div class="f-split">
+      <div><h2>Расходы за период</h2><div id="f-expenses"></div></div>
+      <div><h2>Поломки и ремонт</h2><div id="f-repairs"></div></div>
     </div>
   </section>
 

@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s);
 const TITLES = { orders: 'Заказы', raw: 'Сырьё', products: 'Ассортимент', points: 'Точки', finance: 'Финансы', settings: 'Настройки' };
-const state = { raw: [], products: [], recipes: [], points: [], orders: [], purchases: [] };
+const state = { raw: [], products: [], recipes: [], points: [], orders: [], purchases: [], expenses: [] };
 
 function cfg() {
   return { url: localStorage.getItem('api_url') || '', key: localStorage.getItem('api_key') || '' };
@@ -450,8 +450,8 @@ const fmt1 = n => (Math.round(n * 10) / 10).toLocaleString('ru-RU');
 
 async function loadFinance() {
   try {
-    const [od, pu] = await Promise.all(['Заказы', 'Закупки'].map(sheet => api('list', { sheet })));
-    state.orders = od.rows; state.purchases = pu.rows;
+    const [od, pu, ex] = await Promise.all(['Заказы', 'Закупки', 'Расходы'].map(sheet => api('list', { sheet })));
+    state.orders = od.rows; state.purchases = pu.rows; state.expenses = ex.rows;
   } catch (e) {
     $('#f-kpi').replaceChildren(h('p', { class: 'bad' }, e.message));
     return;
@@ -487,30 +487,86 @@ function renderFinance() {
   const inR = d => d >= from && d <= to;
   const ords = state.orders.filter(o => inR(o['Дата']));
   const buys = state.purchases.filter(x => inR(x['Дата']));
+  const exps = state.expenses.filter(x => inR(x['Дата']));
   const sum = (arr, k) => arr.reduce((s, x) => s + (Number(x[k]) || 0), 0);
-  const rev = sum(ords, 'Выручка'), cost = sum(ords, 'Себестоимость'), profit = sum(ords, 'Прибыль');
-  const qty = sum(ords, 'Кол-во'), ret = sum(ords, 'Возвраты'), bought = sum(buys, 'Сумма');
+  const rev = sum(ords, 'Выручка'), cost = sum(ords, 'Себестоимость'), gross = sum(ords, 'Прибыль');
+  const qty = sum(ords, 'Кол-во'), ret = sum(ords, 'Возвраты'), bought = sum(buys, 'Сумма'), spent = sum(exps, 'Сумма');
+  const net = gross - spent;
   const tile = (label, value, cls) => h('div', { class: 'tile ' + (cls || '') }, h('span', { class: 'sub' }, label), h('strong', {}, value));
   $('#f-kpi').replaceChildren(
-    tile('Прибыль', fmt(profit), 'hot'), tile('Выручка', fmt(rev)), tile('Себестоимость', fmt(cost)),
-    tile('Рентабельность', `${fmt1(rev > 0 ? profit / rev * 100 : 0)}%`), tile('Булок сдано', fmt(qty)),
-    tile('Возвраты', `${fmt(ret)}${qty ? ` (${fmt1(ret / qty * 100)}%)` : ''}`), tile('Закуплено сырья', fmt(bought)));
+    tile('Чистая прибыль', fmt(net), 'hot'), tile('Валовая прибыль', fmt(gross)), tile('Выручка', fmt(rev)),
+    tile('Себестоимость', fmt(cost)), tile('Расходы', fmt(spent)), tile('Рентабельность', `${fmt1(rev > 0 ? net / rev * 100 : 0)}%`),
+    tile('Булок сдано', fmt(qty)), tile('Возвраты', `${fmt(ret)}${qty ? ` (${fmt1(ret / qty * 100)}%)` : ''}`),
+    tile('Закуплено сырья', fmt(bought)));
 
   const days = [];
   const start = new Date(from + 'T12:00:00');
   for (let d = new Date(to + 'T12:00:00'); d >= start && days.length < 31; d.setDate(d.getDate() - 1)) days.unshift(ymd(d));
   const byDay = {};
   ords.forEach(o => { byDay[o['Дата']] = (byDay[o['Дата']] || 0) + (Number(o['Прибыль']) || 0); });
+  exps.forEach(x => { byDay[x['Дата']] = (byDay[x['Дата']] || 0) - (Number(x['Сумма']) || 0); });
   const max = Math.max(1, ...days.map(d => Math.abs(byDay[d] || 0)));
-  $('#f-chart').replaceChildren(...(ords.length ? days.map(d => {
+  $('#f-chart').replaceChildren(...(ords.length || exps.length ? days.map(d => {
     const v = byDay[d] || 0;
     return h('div', { class: 'bar' },
       h('div', { class: 'fill' + (v < 0 ? ' neg' : ''), style: `height:${Math.max(2, Math.abs(v) / max * 100)}%`, title: `${d}: ${fmt(v)}` }),
       h('span', {}, d.slice(8)));
-  }) : [h('p', { class: 'stub' }, 'За этот период заказов нет.')]));
+  }) : [h('p', { class: 'stub' }, 'За этот период данных нет.')]));
 
   $('#f-points').replaceChildren(...groupRows(ords, 'Точка'));
   $('#f-products').replaceChildren(...groupRows(ords, 'Товар'));
+  renderExpenses(exps);
+}
+
+// ---------- Расходы и поломки ----------
+
+function renderExpenses(exps) {
+  const sorted = [...exps].sort((a, b) => String(b['Дата']).localeCompare(String(a['Дата'])) || Number(b['ID']) - Number(a['ID']));
+  const row = x => {
+    const el = h('div', { class: 'item tap' },
+      h('div', {}, h('b', {}, x['Категория'] + (x['Оборудование'] ? ' · ' + x['Оборудование'] : '')),
+        h('span', { class: 'sub' }, [x['Дата'], x['Описание']].filter(Boolean).join(' · '))),
+      h('div', { class: 'qty' }, fmt(Number(x['Сумма']) || 0)));
+    el.addEventListener('click', () => deleteExpense(x));
+    return el;
+  };
+  $('#f-expenses').replaceChildren(...(sorted.length ? sorted.map(row) : [h('p', { class: 'stub' }, 'За этот период расходов нет.')]));
+
+  const rep = sorted.filter(x => x['Категория'] === 'Ремонт');
+  const tally = {};
+  rep.forEach(x => { const k = x['Оборудование'] || 'Другое'; tally[k] = (tally[k] || 0) + 1; });
+  const total = rep.reduce((s, x) => s + (Number(x['Сумма']) || 0), 0);
+  const head = rep.length
+    ? h('p', { class: 'sub' }, `Поломок: ${rep.length}, на сумму ${fmt(total)}. ` + Object.entries(tally).map(([k, v]) => `${k}: ${v}`).join(', ') + '.')
+    : '';
+  $('#f-repairs').replaceChildren(head, ...(rep.length ? rep.map(row) : [h('p', { class: 'stub' }, 'За этот период поломок не было.')]));
+}
+
+async function addExpense() {
+  const sum = num($('#e-sum').value), cat = $('#e-cat').value, date = $('#e-date').value || today();
+  if (!(sum > 0)) return setStatus('#exp-status', 'Введите сумму.', 'bad');
+  const btn = $('#btn-expense');
+  btn.disabled = true;
+  try {
+    await api('add', { sheet: 'Расходы', row: {
+      'Дата': date, 'Категория': cat, 'Описание': $('#e-desc').value.trim(),
+      'Оборудование': cat === 'Ремонт' ? $('#e-eq').value : '', 'Сумма': sum } });
+    $('#e-sum').value = ''; $('#e-desc').value = '';
+    const outside = date < $('#f-from').value || date > $('#f-to').value;
+    setStatus('#exp-status', 'Расход записан.' + (outside ? ' Он вне выбранного периода, поэтому в списках его не видно.' : ''), 'ok');
+    loadFinance();
+  } catch (e) {
+    setStatus('#exp-status', e.message, 'bad');
+  } finally { btn.disabled = false; }
+}
+
+async function deleteExpense(x) {
+  if (!confirm(`Удалить расход «${x['Категория']}» на сумму ${fmt(Number(x['Сумма']) || 0)}?`)) return;
+  try {
+    await api('deleteRow', { sheet: 'Расходы', id: x['ID'] });
+    setStatus('#exp-status', 'Расход удалён.', 'ok');
+    loadFinance();
+  } catch (e) { setStatus('#exp-status', e.message, 'bad'); }
 }
 
 // ---------- Возврат хлеба с точки ----------
@@ -618,6 +674,10 @@ function init() {
     document.querySelectorAll('#f-chips button').forEach(b => b.classList.remove('active'));
     renderFinance();
   }));
+
+  $('#e-date').value = today();
+  $('#e-cat').addEventListener('change', () => { $('#e-eq-wrap').hidden = $('#e-cat').value !== 'Ремонт'; });
+  $('#btn-expense').addEventListener('click', addExpense);
 
   show(c.url && c.key ? (localStorage.getItem('last_view') || 'orders') : 'settings');
 
