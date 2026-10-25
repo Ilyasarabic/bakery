@@ -71,14 +71,12 @@ function renderRaw() {
         h('div', { class: 'qty' }, `${fmt(bal)} ${r['Ед.']}`, low ? h('span', { class: 'sub' }, 'Пора докупать') : ''));
     }));
   }
-  $('#p-raw').replaceChildren(...state.raw.map(r => h('option', { value: r['ID'] }, `${r['Название']} (${r['Ед.']})`)));
-  updateHint();
-}
-
-function updateHint() {
-  const qty = num($('#p-qty').value), sum = num($('#p-sum').value);
-  const raw = state.raw.find(r => String(r['ID']) === $('#p-raw').value);
-  $('#p-hint').textContent = qty > 0 && sum >= 0 && raw ? `Цена за ${raw['Ед.']}: ${fmt(sum / qty)}` : '';
+  document.querySelectorAll('#p-lines .pl-raw').forEach(sel => {
+    const v = sel.value;
+    sel.replaceChildren(...rawOptions());
+    if (v) sel.value = v;
+  });
+  if (!document.querySelector('#p-lines .pline') && state.raw.length) addPLine();
 }
 
 async function addRaw() {
@@ -93,18 +91,53 @@ async function addRaw() {
   } catch (e) { setStatus('#raw-status', e.message, 'bad'); }
 }
 
+const rawOptions = () => state.raw.map(r => h('option', { value: r['ID'] }, `${r['Название']} (${r['Ед.']})`));
+
+function addPLine() {
+  const sel = h('select', { class: 'pl-raw' }, ...rawOptions());
+  const q = h('input', { class: 'pl-qty', type: 'text', inputmode: 'decimal', placeholder: 'Количество', autocomplete: 'off' });
+  const pr = h('input', { class: 'pl-price', type: 'text', inputmode: 'decimal', placeholder: 'Цена за ед.', autocomplete: 'off' });
+  const del = h('button', { type: 'button', class: 'ghost', 'aria-label': 'Убрать' }, '×');
+  const sum = h('span', { class: 'pl-sum sub' });
+  const row = h('div', { class: 'pline' }, sel, q, pr, del, sum);
+  del.addEventListener('click', () => { row.remove(); updateTotal(); });
+  [q, pr].forEach(i => i.addEventListener('input', updateTotal));
+  $('#p-lines').append(row);
+}
+
+function updateTotal() {
+  let total = 0;
+  document.querySelectorAll('#p-lines .pline').forEach(r => {
+    const s = num(r.querySelector('.pl-qty').value) * num(r.querySelector('.pl-price').value);
+    r.querySelector('.pl-sum').textContent = s > 0 ? `Сумма: ${fmt(s)}` : '';
+    if (s > 0) total += s;
+  });
+  $('#p-total').textContent = fmt(total);
+}
+
 async function addPurchase() {
-  const qty = num($('#p-qty').value), sum = num($('#p-sum').value);
-  if (!$('#p-raw').value) return setStatus('#raw-status', 'Сначала добавьте сырьё.', 'bad');
-  if (!(qty > 0)) return setStatus('#raw-status', 'Введите количество больше нуля.', 'bad');
-  if (!(sum >= 0)) return setStatus('#raw-status', 'Введите сумму.', 'bad');
+  const lines = [...document.querySelectorAll('#p-lines .pline')].map(r => ({
+    rawId: r.querySelector('.pl-raw').value,
+    qty: num(r.querySelector('.pl-qty').value),
+    price: num(r.querySelector('.pl-price').value)
+  }));
+  if (!lines.length) return setStatus('#raw-status', 'Сначала добавьте сырьё, затем товары в закупку.', 'bad');
+  if (lines.some(l => !l.rawId || !(l.qty > 0) || !(l.price >= 0))) return setStatus('#raw-status', 'Заполните количество и цену в каждой строке.', 'bad');
+  const btn = $('#btn-purchase');
+  btn.disabled = true;
   setStatus('#raw-status', 'Записываю…');
   try {
-    const { row } = await api('purchase', { rawId: $('#p-raw').value, qty, sum, supplier: $('#p-supplier').value.trim(), date: today() });
-    $('#p-qty').value = ''; $('#p-sum').value = ''; $('#p-supplier').value = '';
-    setStatus('#raw-status', `Закупка записана. Остаток: ${fmt(row['Остаток'])}.`, 'ok');
+    const { row } = await api('purchaseMany', { date: $('#p-date').value || today(), supplier: $('#p-supplier').value.trim(), lines });
+    $('#p-lines').replaceChildren();
+    $('#p-supplier').value = '';
+    updateTotal();
+    setStatus('#raw-status', `Закупка записана: позиций ${row.count}, на сумму ${fmt(row.total)}.`, 'ok');
     loadRaw();
-  } catch (e) { setStatus('#raw-status', e.message, 'bad'); }
+  } catch (e) {
+    setStatus('#raw-status', e.message, 'bad');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ---------- Ассортимент ----------
@@ -370,7 +403,8 @@ function init() {
     catch (e) { setStatus('#status', e.message, 'bad'); }
   });
 
-  ['#p-qty', '#p-sum', '#p-raw'].forEach(s => $(s).addEventListener('input', updateHint));
+  $('#btn-pline').addEventListener('click', addPLine);
+  $('#p-date').value = today();
   $('#btn-newraw').addEventListener('click', addRaw);
   $('#btn-purchase').addEventListener('click', addPurchase);
 

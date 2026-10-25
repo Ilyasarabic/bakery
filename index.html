@@ -59,15 +59,14 @@
 
     <details class="panel">
       <summary>Записать закупку</summary>
-      <label for="p-raw">Что купили</label>
-      <select id="p-raw"></select>
-      <label for="p-qty">Количество</label>
-      <input id="p-qty" type="text" inputmode="decimal" autocomplete="off">
-      <label for="p-sum">Сколько заплатили всего</label>
-      <input id="p-sum" type="text" inputmode="decimal" autocomplete="off">
-      <p id="p-hint" class="sub"></p>
+      <label for="p-date">Дата</label>
+      <input id="p-date" type="date">
       <label for="p-supplier">Поставщик (необязательно)</label>
       <input id="p-supplier" type="text" autocomplete="off">
+      <label>Товары</label>
+      <div id="p-lines"></div>
+      <button id="btn-pline" type="button" class="ghost">+ Добавить товар</button>
+      <div class="ptotal"><span>Итого</span><strong id="p-total">0</strong></div>
       <button id="btn-purchase" type="button" class="primary">Записать закупку</button>
     </details>
 

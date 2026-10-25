@@ -216,3 +216,11 @@ nav button.active span { font-weight: 700; }
   #raw-status, #prod-status, #pt-status { grid-column: 2; }
   #raw-status:empty, #prod-status:empty, #pt-status:empty { display: none; }
 }
+
+/* закупка-накладная */
+.pline { display: grid; grid-template-columns: 1fr 1fr 48px; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.pline select, .pline .pl-sum { grid-column: 1 / -1; }
+.pline .ghost { width: auto; height: 52px; margin: 0; padding: 0; font-size: 20px; }
+.pl-sum { min-height: 1.2em; }
+.ptotal { display: flex; justify-content: space-between; align-items: baseline; margin-top: 18px; padding-top: 14px; border-top: 2px solid var(--ink); font-weight: 700; }
+.ptotal strong { font: 600 22px/1 var(--display); font-variant-numeric: tabular-nums; }
