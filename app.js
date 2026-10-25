@@ -322,9 +322,13 @@ async function loadOrders() {
   };
   fill('#o-point', state.points.map(pt => h('option', { value: pt['ID'] }, pt['Название'])));
   fill('#o-prod', state.products.map(p => h('option', { value: p['ID'] }, p['Название'])));
+  fill('#r-point', state.points.map(pt => h('option', { value: pt['ID'] }, pt['Название'])));
+  fill('#r-prod', state.products.map(p => h('option', { value: p['ID'] }, p['Название'])));
   if (!$('#o-date').value) $('#o-date').value = today();
+  if (!$('#r-date').value) $('#r-date').value = $('#o-date').value;
   updatePreview();
   renderDay();
+  updateReturnPreview();
 }
 
 function updatePreview() {
@@ -509,6 +513,59 @@ function renderFinance() {
   $('#f-products').replaceChildren(...groupRows(ords, 'Товар'));
 }
 
+// ---------- Возврат хлеба с точки ----------
+
+// Возврат распределяется по заказам выбранного дня на эту точку и хлеб, сначала по новым
+function allocReturn(qty) {
+  const date = $('#r-date').value, pid = $('#r-point').value, prid = $('#r-prod').value;
+  const match = state.orders
+    .filter(o => o['Дата'] === date && String(o['ID точки']) === pid && String(o['ID товара']) === prid)
+    .sort((a, b) => Number(b['ID']) - Number(a['ID']));
+  const room = o => (Number(o['Кол-во']) || 0) - (Number(o['Возвраты']) || 0);
+  const capacity = match.reduce((s, o) => s + room(o), 0);
+  let left = qty;
+  const parts = [];
+  match.forEach(o => {
+    const take = Math.min(room(o), left);
+    if (take > 0) { parts.push({ o, take }); left -= take; }
+  });
+  return { match, capacity, parts };
+}
+
+function updateReturnPreview() {
+  const out = $('#r-preview');
+  if (!$('#r-point').value || !$('#r-prod').value) return out.replaceChildren();
+  const qty = num($('#r-qty').value);
+  const { match, capacity, parts } = allocReturn(qty > 0 ? qty : 0);
+  if (!match.length) return out.replaceChildren(h('p', { class: 'bad' }, 'За эту дату нет заказов на эту точку и хлеб.'));
+  const sent = match.reduce((s, o) => s + (Number(o['Кол-во']) || 0), 0);
+  const info = h('p', { class: 'sub' }, `Заказов: ${match.length}, сдано ${fmt(sent)} шт., можно вернуть до ${fmt(capacity)} шт.`);
+  if (!(qty > 0)) return out.replaceChildren(info);
+  if (qty > capacity) return out.replaceChildren(info, h('p', { class: 'bad' }, `Можно вернуть не больше ${fmt(capacity)} шт.`));
+  const lost = parts.reduce((s, x) => s + x.take * (Number(x.o['Цена']) || 0), 0);
+  out.replaceChildren(info,
+    calcRow('Выручка уменьшится на', fmt(lost)),
+    h('p', { class: 'sub' }, 'Возврат пойдёт в заказы: ' + parts.map(x => `${fmt(x.take)} из ${fmt(Number(x.o['Кол-во']) || 0)}`).join(', ') + '.'));
+}
+
+async function placeReturn() {
+  const qty = num($('#r-qty').value);
+  if (!(qty > 0)) return setStatus('#ret-status', 'Введите, сколько вернули.', 'bad');
+  const { capacity } = allocReturn(qty);
+  if (qty > capacity) return setStatus('#ret-status', `Можно вернуть не больше ${fmt(capacity)} шт.`, 'bad');
+  const btn = $('#btn-return');
+  btn.disabled = true;
+  setStatus('#ret-status', 'Записываю…');
+  try {
+    const { row } = await api('returnBread', { date: $('#r-date').value, pointId: $('#r-point').value, productId: $('#r-prod').value, qty });
+    $('#r-qty').value = '';
+    setStatus('#ret-status', `Возврат записан: ${fmt(row.returned)} шт.`, 'ok');
+    loadOrders();
+  } catch (e) {
+    setStatus('#ret-status', e.message, 'bad');
+  } finally { btn.disabled = false; }
+}
+
 // ---------- Запуск ----------
 
 function init() {
@@ -545,7 +602,9 @@ function init() {
   $('#c-n').addEventListener('input', renderCalc);
 
   ['input', 'change'].forEach(ev => { $('#o-prod').addEventListener(ev, updatePreview); $('#o-qty').addEventListener(ev, updatePreview); });
-  $('#o-date').addEventListener('change', renderDay);
+  $('#o-date').addEventListener('change', () => { $('#r-date').value = $('#o-date').value; renderDay(); updateReturnPreview(); });
+  ['input', 'change'].forEach(ev => ['#r-date', '#r-point', '#r-prod', '#r-qty'].forEach(sel => $(sel).addEventListener(ev, updateReturnPreview)));
+  $('#btn-return').addEventListener('click', placeReturn);
   $('#btn-order').addEventListener('click', placeOrder);
   $('#btn-savept').addEventListener('click', savePoint);
   $('#btn-cancelpt').addEventListener('click', () => { resetPointForm(); $('#pt-panel').open = false; });

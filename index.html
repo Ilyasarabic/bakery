@@ -49,6 +49,20 @@
       <div id="o-preview"></div>
       <button id="btn-order" type="button" class="primary">Сдать заказ</button>
       <p id="order-status" role="status"></p>
+      <details class="panel" id="ret-panel">
+        <summary>Записать возврат</summary>
+        <label for="r-date">За какую дату сдавали хлеб</label>
+        <input id="r-date" type="date">
+        <label for="r-point">Точка</label>
+        <select id="r-point"></select>
+        <label for="r-prod">Хлеб</label>
+        <select id="r-prod"></select>
+        <label for="r-qty">Сколько вернули, шт</label>
+        <input id="r-qty" type="text" inputmode="decimal" autocomplete="off">
+        <div id="r-preview"></div>
+        <button id="btn-return" type="button" class="primary">Записать возврат</button>
+        <p id="ret-status" role="status"></p>
+      </details>
     </div>
     <div class="o-day">
       <h2>Заказы за день</h2>
