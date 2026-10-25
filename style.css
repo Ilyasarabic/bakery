@@ -224,3 +224,49 @@ nav button.active span { font-weight: 700; }
 .pl-sum { min-height: 1.2em; }
 .ptotal { display: flex; justify-content: space-between; align-items: baseline; margin-top: 18px; padding-top: 14px; border-top: 2px solid var(--ink); font-weight: 700; }
 .ptotal strong { font: 600 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+
+/* окно заказа */
+dialog {
+  border: 0; padding: 22px; width: 100%; max-width: 520px; max-height: 92vh; overflow: auto;
+  margin: auto auto 0; border-radius: 24px 24px 0 0; background: var(--sheet); color: var(--ink);
+  box-shadow: 0 -10px 40px rgba(0,0,0,.25);
+}
+dialog::backdrop { background: rgba(10, 24, 17, .55); }
+dialog h3 { margin: 0; font: 600 18px/1.3 var(--display); }
+dialog label:first-of-type { margin-top: 16px; }
+.ghost.danger { color: var(--bad); border-color: var(--bad); }
+
+/* финансы */
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.chips button {
+  flex: none; padding: 10px 16px; border-radius: 999px; background: transparent; color: var(--ink);
+  border: 1.5px solid var(--line); font-weight: 600;
+}
+.chips button.active { background: var(--band); color: #fff; border-color: var(--band); }
+.f-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.tile { padding: 14px 16px; border: 1px solid var(--line); border-radius: 16px; }
+.tile strong { display: block; margin-top: 4px; font: 600 20px/1.2 var(--display); font-variant-numeric: tabular-nums; }
+.tile.hot { grid-column: 1 / -1; background: var(--yellow); border-color: var(--yellow); color: var(--on-yellow); }
+.tile.hot .sub { color: var(--on-yellow); opacity: .75; }
+.tile.hot strong { font-size: 30px; }
+.f-note { margin-top: 12px; }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; margin-top: 12px; }
+.bar { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; }
+.bar .fill { width: 100%; max-width: 26px; border-radius: 6px 6px 2px 2px; background: var(--band); }
+.bar .fill.neg { background: var(--bad); }
+.bar span { font-size: 11px; color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .bar .fill { background: var(--yellow); }
+  .chips button.active { background: var(--yellow); color: var(--on-yellow); border-color: var(--yellow); }
+}
+@media (min-width: 900px) {
+  dialog { margin: auto; border-radius: 24px; padding: 28px; }
+  .kpi { grid-template-columns: repeat(4, 1fr); }
+  .tile.hot { grid-column: auto; }
+  .f-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+  #f-chart, #f-points, #f-products { background: var(--sheet); border: 1px solid var(--line); border-radius: 18px; padding: 6px 22px; }
+  #f-chart { padding: 22px; }
+  #f-points .item:last-child, #f-products .item:last-child { border-bottom: 0; }
+  #view-finance.active { max-width: 1180px; }
+}

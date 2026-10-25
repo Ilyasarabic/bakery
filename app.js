@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s);
 const TITLES = { orders: 'Заказы', raw: 'Сырьё', products: 'Ассортимент', points: 'Точки', finance: 'Финансы', settings: 'Настройки' };
-const state = { raw: [], products: [], recipes: [], points: [], orders: [] };
+const state = { raw: [], products: [], recipes: [], points: [], orders: [], purchases: [] };
 
 function cfg() {
   return { url: localStorage.getItem('api_url') || '', key: localStorage.getItem('api_key') || '' };
@@ -43,6 +43,7 @@ function show(name) {
   if (name === 'products') loadProducts();
   if (name === 'points') loadPoints();
   if (name === 'orders') loadOrders();
+  if (name === 'finance') loadFinance();
 }
 
 // ---------- Сырьё ----------
@@ -350,12 +351,17 @@ function renderDay() {
   $('#h-rev').textContent = fmt(sum('Выручка'));
   $('#h-cost').textContent = fmt(sum('Себестоимость'));
   $('#h-qty').textContent = fmt(sum('Кол-во'));
+  $('#h-ret').textContent = fmt(sum('Возвраты'));
   $('#h-profit').textContent = fmt(sum('Прибыль'));
   $('#rc-date').textContent = date ? new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '';
-  $('#o-list').replaceChildren(...(day.length ? day.map(o => h('div', { class: 'item' },
-    h('div', {}, h('b', {}, o['Точка']), h('span', { class: 'sub' }, `${o['Товар']} × ${fmt(Number(o['Кол-во']) || 0)}`)),
-    h('div', { class: 'qty' }, fmt(Number(o['Выручка']) || 0), h('span', { class: 'sub' }, `прибыль ${fmt(Number(o['Прибыль']) || 0)}`)))
-  ) : [h('p', { class: 'stub' }, 'В этот день заказов нет.')]));
+  $('#o-list').replaceChildren(...(day.length ? day.map(o => {
+    const ret = Number(o['Возвраты']) || 0;
+    const el = h('div', { class: 'item tap' },
+      h('div', {}, h('b', {}, o['Точка']), h('span', { class: 'sub' }, `${o['Товар']} × ${fmt(Number(o['Кол-во']) || 0)}${ret ? ` · возврат ${fmt(ret)}` : ''}`)),
+      h('div', { class: 'qty' }, fmt(Number(o['Выручка']) || 0), h('span', { class: 'sub' }, `прибыль ${fmt(Number(o['Прибыль']) || 0)}`)));
+    el.addEventListener('click', () => openOrder(o));
+    return el;
+  }) : [h('p', { class: 'stub' }, 'В этот день заказов нет.')]));
 }
 
 async function placeOrder() {
@@ -377,6 +383,130 @@ async function placeOrder() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// ---------- Заказ: возвраты, исправление, удаление ----------
+
+let editingOrder = null;
+
+function openOrder(o) {
+  editingOrder = o;
+  $('#od-title').textContent = o['Точка'];
+  $('#od-sub').textContent = `${o['Товар']} · ${o['Дата']} · цена ${fmt(Number(o['Цена']) || 0)}`;
+  $('#od-qty').value = o['Кол-во'];
+  $('#od-ret').value = Number(o['Возвраты']) || 0;
+  setStatus('#od-status', '');
+  updateOrderPreview();
+  $('#order-dialog').showModal();
+}
+
+function updateOrderPreview() {
+  const o = editingOrder;
+  if (!o) return;
+  const qty = num($('#od-qty').value), ret = num($('#od-ret').value) || 0;
+  const out = $('#od-preview');
+  if (!(qty > 0) || ret < 0 || ret > qty) {
+    out.replaceChildren(h('p', { class: 'bad' }, 'Проверьте числа: возвратов не может быть больше, чем сдано.'));
+    return;
+  }
+  const rev = (qty - ret) * (Number(o['Цена']) || 0), cost = qty * (Number(o['Себестоимость ед.']) || 0);
+  out.replaceChildren(calcRow('Выручка', fmt(rev)), calcRow('Себестоимость', fmt(cost)), calcRow('Прибыль', fmt(rev - cost)));
+}
+
+async function saveOrderEdit() {
+  const qty = num($('#od-qty').value), ret = num($('#od-ret').value) || 0;
+  if (!(qty > 0) || ret < 0 || ret > qty) return setStatus('#od-status', 'Проверьте количество и возвраты.', 'bad');
+  const btn = $('#btn-od-save');
+  btn.disabled = true;
+  try {
+    const { row } = await api('updateOrder', { id: editingOrder['ID'], qty, returns: ret });
+    $('#order-dialog').close();
+    const warn = row.negative && row.negative.length ? ` Остаток ушёл в минус: ${row.negative.join(', ')}.` : '';
+    setStatus('#order-status', 'Заказ обновлён.' + warn, warn ? 'bad' : 'ok');
+    loadOrders();
+  } catch (e) {
+    setStatus('#od-status', e.message, 'bad');
+  } finally { btn.disabled = false; }
+}
+
+async function deleteOrderEdit() {
+  if (!confirm('Удалить заказ? Сырьё вернётся на склад.')) return;
+  try {
+    await api('deleteOrder', { id: editingOrder['ID'] });
+    $('#order-dialog').close();
+    setStatus('#order-status', 'Заказ удалён, сырьё возвращено.', 'ok');
+    loadOrders();
+  } catch (e) { setStatus('#od-status', e.message, 'bad'); }
+}
+
+// ---------- Финансы ----------
+
+const ymd = d => d.toLocaleDateString('sv-SE');
+const fmt1 = n => (Math.round(n * 10) / 10).toLocaleString('ru-RU');
+
+async function loadFinance() {
+  try {
+    const [od, pu] = await Promise.all(['Заказы', 'Закупки'].map(sheet => api('list', { sheet })));
+    state.orders = od.rows; state.purchases = pu.rows;
+  } catch (e) {
+    $('#f-kpi').replaceChildren(h('p', { class: 'bad' }, e.message));
+    return;
+  }
+  if (!$('#f-from').value) setRange('7');
+  renderFinance();
+}
+
+function setRange(r) {
+  const to = new Date(), from = new Date();
+  if (r === 'month') from.setDate(1);
+  else if (r !== 'today') from.setDate(from.getDate() - (Number(r) - 1));
+  $('#f-from').value = ymd(from);
+  $('#f-to').value = ymd(to);
+  document.querySelectorAll('#f-chips button').forEach(b => b.classList.toggle('active', b.dataset.range === r));
+}
+
+function groupRows(ords, key) {
+  const m = {};
+  ords.forEach(o => {
+    const g = m[o[key]] || (m[o[key]] = { qty: 0, rev: 0, profit: 0 });
+    g.qty += Number(o['Кол-во']) || 0; g.rev += Number(o['Выручка']) || 0; g.profit += Number(o['Прибыль']) || 0;
+  });
+  const rows = Object.entries(m).sort((a, b) => b[1].profit - a[1].profit).map(([name, g]) =>
+    h('div', { class: 'item' },
+      h('div', {}, h('b', {}, name), h('span', { class: 'sub' }, `${fmt(g.qty)} булок`)),
+      h('div', { class: 'qty' }, fmt(g.profit), h('span', { class: 'sub' }, `выручка ${fmt(g.rev)}`))));
+  return rows.length ? rows : [h('p', { class: 'stub' }, 'За этот период данных нет.')];
+}
+
+function renderFinance() {
+  const from = $('#f-from').value, to = $('#f-to').value;
+  const inR = d => d >= from && d <= to;
+  const ords = state.orders.filter(o => inR(o['Дата']));
+  const buys = state.purchases.filter(x => inR(x['Дата']));
+  const sum = (arr, k) => arr.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+  const rev = sum(ords, 'Выручка'), cost = sum(ords, 'Себестоимость'), profit = sum(ords, 'Прибыль');
+  const qty = sum(ords, 'Кол-во'), ret = sum(ords, 'Возвраты'), bought = sum(buys, 'Сумма');
+  const tile = (label, value, cls) => h('div', { class: 'tile ' + (cls || '') }, h('span', { class: 'sub' }, label), h('strong', {}, value));
+  $('#f-kpi').replaceChildren(
+    tile('Прибыль', fmt(profit), 'hot'), tile('Выручка', fmt(rev)), tile('Себестоимость', fmt(cost)),
+    tile('Рентабельность', `${fmt1(rev > 0 ? profit / rev * 100 : 0)}%`), tile('Булок сдано', fmt(qty)),
+    tile('Возвраты', `${fmt(ret)}${qty ? ` (${fmt1(ret / qty * 100)}%)` : ''}`), tile('Закуплено сырья', fmt(bought)));
+
+  const days = [];
+  const start = new Date(from + 'T12:00:00');
+  for (let d = new Date(to + 'T12:00:00'); d >= start && days.length < 31; d.setDate(d.getDate() - 1)) days.unshift(ymd(d));
+  const byDay = {};
+  ords.forEach(o => { byDay[o['Дата']] = (byDay[o['Дата']] || 0) + (Number(o['Прибыль']) || 0); });
+  const max = Math.max(1, ...days.map(d => Math.abs(byDay[d] || 0)));
+  $('#f-chart').replaceChildren(...(ords.length ? days.map(d => {
+    const v = byDay[d] || 0;
+    return h('div', { class: 'bar' },
+      h('div', { class: 'fill' + (v < 0 ? ' neg' : ''), style: `height:${Math.max(2, Math.abs(v) / max * 100)}%`, title: `${d}: ${fmt(v)}` }),
+      h('span', {}, d.slice(8)));
+  }) : [h('p', { class: 'stub' }, 'За этот период заказов нет.')]));
+
+  $('#f-points').replaceChildren(...groupRows(ords, 'Точка'));
+  $('#f-products').replaceChildren(...groupRows(ords, 'Товар'));
 }
 
 // ---------- Запуск ----------
@@ -419,6 +549,16 @@ function init() {
   $('#btn-order').addEventListener('click', placeOrder);
   $('#btn-savept').addEventListener('click', savePoint);
   $('#btn-cancelpt').addEventListener('click', () => { resetPointForm(); $('#pt-panel').open = false; });
+
+  ['#od-qty', '#od-ret'].forEach(sel => $(sel).addEventListener('input', updateOrderPreview));
+  $('#btn-od-save').addEventListener('click', saveOrderEdit);
+  $('#btn-od-del').addEventListener('click', deleteOrderEdit);
+  $('#btn-od-close').addEventListener('click', () => $('#order-dialog').close());
+  document.querySelectorAll('#f-chips button').forEach(b => b.addEventListener('click', () => { setRange(b.dataset.range); renderFinance(); }));
+  ['#f-from', '#f-to'].forEach(sel => $(sel).addEventListener('change', () => {
+    document.querySelectorAll('#f-chips button').forEach(b => b.classList.remove('active'));
+    renderFinance();
+  }));
 
   show(c.url && c.key ? (localStorage.getItem('last_view') || 'orders') : 'settings');
 

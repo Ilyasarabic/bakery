@@ -32,6 +32,7 @@
           <div class="rc-row"><span>Выручка</span><b id="h-rev">0</b></div>
           <div class="rc-row"><span>Себестоимость</span><b id="h-cost">0</b></div>
           <div class="rc-row"><span>Булок сдано</span><b id="h-qty">0</b></div>
+          <div class="rc-row"><span>Возвраты, шт</span><b id="h-ret">0</b></div>
           <div class="rc-total"><span>Прибыль</span><strong id="h-profit">0</strong></div>
         </div>
       </div>
@@ -132,7 +133,24 @@
     <p id="pt-status" role="status"></p>
   </section>
   <section id="view-finance" class="view">
-    <p class="stub">Здесь будут выручка, себестоимость и прибыль.</p>
+    <div class="chips" id="f-chips">
+      <button type="button" data-range="today">Сегодня</button>
+      <button type="button" data-range="7">7 дней</button>
+      <button type="button" data-range="month">Месяц</button>
+      <button type="button" data-range="30">30 дней</button>
+    </div>
+    <div class="f-dates">
+      <div><label for="f-from">С</label><input id="f-from" type="date"></div>
+      <div><label for="f-to">По</label><input id="f-to" type="date"></div>
+    </div>
+    <div id="f-kpi" class="kpi"></div>
+    <p class="sub f-note">Выручка уже за вычетом возвратов. Себестоимость — сырьё, ушедшее в сданный хлеб. «Закуплено сырья» — деньги, потраченные на закупки за период.</p>
+    <h2>Прибыль по дням</h2>
+    <div id="f-chart" class="bars"></div>
+    <div class="f-split">
+      <div><h2>По точкам</h2><div id="f-points"></div></div>
+      <div><h2>По хлебам</h2><div id="f-products"></div></div>
+    </div>
   </section>
 
   <section id="view-settings" class="view">
@@ -156,6 +174,20 @@
   <button type="button" data-view="points"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></i><span>Точки</span></button>
   <button type="button" data-view="finance"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></svg></i><span>Финансы</span></button>
 </nav>
+
+<dialog id="order-dialog">
+  <h3 id="od-title"></h3>
+  <p id="od-sub" class="sub"></p>
+  <label for="od-qty">Сдано, шт</label>
+  <input id="od-qty" type="text" inputmode="decimal" autocomplete="off">
+  <label for="od-ret">Возвраты, шт</label>
+  <input id="od-ret" type="text" inputmode="decimal" autocomplete="off">
+  <div id="od-preview"></div>
+  <button id="btn-od-save" type="button" class="primary">Сохранить</button>
+  <button id="btn-od-del" type="button" class="ghost danger">Удалить заказ</button>
+  <button id="btn-od-close" type="button" class="ghost">Закрыть</button>
+  <p id="od-status" role="status"></p>
+</dialog>
 
 <script src="app.js"></script>
 </body>
