@@ -94,36 +94,75 @@ async function addRaw() {
 
 const rawOptions = () => state.raw.map(r => h('option', { value: r['ID'] }, `${r['Название']} (${r['Ед.']})`));
 
+const round2 = n => Math.round(n * 100) / 100;
+const round4 = n => Math.round(n * 10000) / 10000;
+
+// «3*50» даёт 150: можно вводить число мешков и вес мешка
+function calcQty(str) {
+  const parts = String(str).replace(/,/g, '.').replace(/[x×х]/gi, '*').split('*').map(x => parseFloat(x.trim()));
+  if (!parts.length || parts.some(x => !(x >= 0))) return NaN;
+  return parts.reduce((a, b) => a * b, 1);
+}
+
 function addPLine() {
   const sel = h('select', { class: 'pl-raw' }, ...rawOptions());
-  const q = h('input', { class: 'pl-qty', type: 'text', inputmode: 'decimal', placeholder: 'Количество', autocomplete: 'off' });
-  const pr = h('input', { class: 'pl-price', type: 'text', inputmode: 'decimal', placeholder: 'Цена за ед.', autocomplete: 'off' });
+  const q = h('input', { class: 'pl-qty', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '50 или 1*50' });
+  const pr = h('input', { class: 'pl-price', type: 'text', inputmode: 'decimal', autocomplete: 'off' });
+  const am = h('input', { class: 'pl-amount', type: 'text', inputmode: 'decimal', autocomplete: 'off' });
   const del = h('button', { type: 'button', class: 'ghost', 'aria-label': 'Убрать' }, '×');
-  const sum = h('span', { class: 'pl-sum sub' });
-  const row = h('div', { class: 'pline' }, sel, q, pr, del, sum);
+  const unitLabel = h('span', {}, 'Цена за ед.');
+  const hint = h('span', { class: 'pl-hint sub' });
+  const row = h('div', { class: 'pline' }, sel, del,
+    h('div', { class: 'pl-fields' },
+      h('div', { class: 'pf' }, h('span', {}, 'Количество'), q),
+      h('div', { class: 'pf' }, unitLabel, pr),
+      h('div', { class: 'pf' }, h('span', {}, 'Сумма'), am)),
+    hint);
+  row.dataset.src = 'price';
+  const unitName = () => { const r = rawById(sel.value); return r ? r['Ед.'] : 'ед.'; };
+  // Вводишь количество и либо цену за единицу, либо сумму за всю позицию: второе считается само
+  const recalc = from => {
+    if (from) row.dataset.src = from;
+    const qty = calcQty(q.value);
+    unitLabel.textContent = `Цена за ${unitName()}`;
+    if (qty > 0) {
+      if (row.dataset.src === 'sum') {
+        const sum = num(am.value);
+        pr.value = sum >= 0 ? String(round4(sum / qty)).replace('.', ',') : '';
+      } else {
+        const price = num(pr.value);
+        am.value = price >= 0 ? String(round2(qty * price)).replace('.', ',') : '';
+      }
+    }
+    hint.textContent = qty > 0 && /[*x×х]/i.test(q.value) ? `Количество: ${fmt(qty)} ${unitName()}` : '';
+    updateTotal();
+  };
+  q.addEventListener('input', () => recalc());
+  pr.addEventListener('input', () => recalc('price'));
+  am.addEventListener('input', () => recalc('sum'));
+  sel.addEventListener('change', () => recalc());
   del.addEventListener('click', () => { row.remove(); updateTotal(); });
-  [q, pr].forEach(i => i.addEventListener('input', updateTotal));
   $('#p-lines').append(row);
+  recalc();
 }
 
 function updateTotal() {
   let total = 0;
   document.querySelectorAll('#p-lines .pline').forEach(r => {
-    const s = num(r.querySelector('.pl-qty').value) * num(r.querySelector('.pl-price').value);
-    r.querySelector('.pl-sum').textContent = s > 0 ? `Сумма: ${fmt(s)}` : '';
-    if (s > 0) total += s;
+    const v = num(r.querySelector('.pl-amount').value);
+    if (v > 0) total += v;
   });
   $('#p-total').textContent = fmt(total);
 }
 
 async function addPurchase() {
-  const lines = [...document.querySelectorAll('#p-lines .pline')].map(r => ({
-    rawId: r.querySelector('.pl-raw').value,
-    qty: num(r.querySelector('.pl-qty').value),
-    price: num(r.querySelector('.pl-price').value)
-  }));
+  const lines = [...document.querySelectorAll('#p-lines .pline')].map(r => {
+    const qty = calcQty(r.querySelector('.pl-qty').value);
+    const sum = num(r.querySelector('.pl-amount').value);
+    return { rawId: r.querySelector('.pl-raw').value, qty, sum: round2(sum), price: qty > 0 ? round4(sum / qty) : NaN };
+  });
   if (!lines.length) return setStatus('#raw-status', 'Сначала добавьте сырьё, затем товары в закупку.', 'bad');
-  if (lines.some(l => !l.rawId || !(l.qty > 0) || !(l.price >= 0))) return setStatus('#raw-status', 'Заполните количество и цену в каждой строке.', 'bad');
+  if (lines.some(l => !l.rawId || !(l.qty > 0) || !(l.sum >= 0))) return setStatus('#raw-status', 'В каждой строке укажите количество и цену или сумму.', 'bad');
   const btn = $('#btn-purchase');
   btn.disabled = true;
   setStatus('#raw-status', 'Записываю…');

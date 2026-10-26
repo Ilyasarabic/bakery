@@ -278,3 +278,12 @@ dialog label:first-of-type { margin-top: 16px; }
 @media (min-width: 900px) {
   .kpi { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* закупка: количество, цена за единицу и сумма */
+.pline { grid-template-columns: 1fr 48px; }
+.pline select { grid-column: auto; }
+.pline .pl-fields, .pline .pl-hint { grid-column: 1 / -1; }
+.pl-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.pf span { display: block; margin-bottom: 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.pf input { padding: 0 10px; }
+.pl-hint:empty { display: none; }
