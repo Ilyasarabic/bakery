@@ -67,27 +67,69 @@ function renderRaw() {
       const bal = Number(r['Остаток']) || 0;
       const min = Number(r['Мин. остаток']) || 0;
       const low = min > 0 && bal <= min;
-      return h('div', { class: 'item' + (low ? ' low' : '') },
-        h('div', {}, h('b', {}, r['Название']), h('span', { class: 'sub' }, `Цена: ${fmt(Number(r['Цена за ед.']) || 0)} за ${r['Ед.']}`)),
+      const pk = packOf(r);
+      const el = h('div', { class: 'item tap' + (low ? ' low' : '') },
+        h('div', {}, h('b', {}, r['Название']),
+          h('span', { class: 'sub' }, `Цена: ${fmt(Number(r['Цена за ед.']) || 0)} за ${r['Ед.']}` + (pk ? ` · ${pk.name} = ${fmt(pk.size)} ${r['Ед.']}` : ''))),
         h('div', { class: 'qty' }, `${fmt(bal)} ${r['Ед.']}`, low ? h('span', { class: 'sub' }, 'Пора докупать') : ''));
+      el.addEventListener('click', () => editRaw(r));
+      return el;
     }));
   }
-  document.querySelectorAll('#p-lines .pl-raw').forEach(sel => {
+  document.querySelectorAll('#p-lines .pline').forEach(row => {
+    const sel = row.querySelector('.pl-raw');
     const v = sel.value;
     sel.replaceChildren(...rawOptions());
     if (v) sel.value = v;
+    row.refresh();
   });
   if (!document.querySelector('#p-lines .pline') && state.raw.length) addPLine();
+}
+
+function togglePack() {
+  const on = $('#n-packed').value === 'yes';
+  $('#n-pack-wrap').hidden = !on;
+  $('#n-pack-size-label').textContent = `Сколько ${$('#n-unit').value} в одной упаковке`;
+}
+
+function resetRawForm() {
+  ['#n-id', '#n-name', '#n-min', '#n-pack-name', '#n-pack-size'].forEach(sel => { $(sel).value = ''; });
+  $('#n-unit').value = 'кг';
+  $('#n-packed').value = 'no';
+  togglePack();
+  $('#raw-summary').textContent = 'Добавить новое сырьё';
+}
+
+function editRaw(r) {
+  resetRawForm();
+  $('#n-id').value = r['ID'];
+  $('#n-name').value = r['Название'];
+  $('#n-unit').value = r['Ед.'];
+  $('#n-min').value = Number(r['Мин. остаток']) || '';
+  const pk = packOf(r);
+  if (pk) { $('#n-packed').value = 'yes'; $('#n-pack-name').value = pk.name; $('#n-pack-size').value = pk.size; }
+  togglePack();
+  $('#raw-summary').textContent = 'Изменить: ' + r['Название'];
+  const d = $('#raw-panel');
+  d.open = true;
+  d.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function addRaw() {
   const name = $('#n-name').value.trim();
   if (!name) return setStatus('#raw-status', 'Введите название.', 'bad');
-  const min = num($('#n-min').value) || 0;
+  const packed = $('#n-packed').value === 'yes';
+  const packName = $('#n-pack-name').value.trim(), packSize = num($('#n-pack-size').value);
+  if (packed && (!packName || !(packSize > 0))) return setStatus('#raw-status', 'Укажите название упаковки и сколько в ней.', 'bad');
+  const fields = { 'Название': name, 'Ед.': $('#n-unit').value, 'Мин. остаток': num($('#n-min').value) || 0,
+    'Упаковка': packed ? packName : '', 'В упаковке': packed ? packSize : '' };
+  const id = $('#n-id').value;
   try {
-    await api('add', { sheet: 'Сырьё', row: { 'Название': name, 'Ед.': $('#n-unit').value, 'Остаток': 0, 'Мин. остаток': min, 'Цена за ед.': 0 } });
-    $('#n-name').value = ''; $('#n-min').value = '';
-    setStatus('#raw-status', `Добавлено: ${name}.`, 'ok');
+    if (id) await api('update', { sheet: 'Сырьё', id, fields });
+    else await api('add', { sheet: 'Сырьё', row: Object.assign({ 'Остаток': 0, 'Цена за ед.': 0 }, fields) });
+    resetRawForm();
+    $('#raw-panel').open = false;
+    setStatus('#raw-status', `Сохранено: ${name}.`, 'ok');
     loadRaw();
   } catch (e) { setStatus('#raw-status', e.message, 'bad'); }
 }
@@ -96,52 +138,69 @@ const rawOptions = () => state.raw.map(r => h('option', { value: r['ID'] }, `${r
 
 const round2 = n => Math.round(n * 100) / 100;
 const round4 = n => Math.round(n * 10000) / 10000;
+const fmtIn = n => String(n).replace('.', ',');
+const packOf = r => {
+  const size = Number(r['В упаковке']) || 0, name = String(r['Упаковка'] || '').trim();
+  return size > 0 && name ? { name, size } : null;
+};
 
-// «3*50» даёт 150: можно вводить число мешков и вес мешка
-function calcQty(str) {
-  const parts = String(str).replace(/,/g, '.').replace(/[x×х]/gi, '*').split('*').map(x => parseFloat(x.trim()));
-  if (!parts.length || parts.some(x => !(x >= 0))) return NaN;
-  return parts.reduce((a, b) => a * b, 1);
-}
-
+// Строка накладной: товар, сколько купили (в упаковках или в единицах), цена за единицу покупки, сумма
 function addPLine() {
   const sel = h('select', { class: 'pl-raw' }, ...rawOptions());
-  const q = h('input', { class: 'pl-qty', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '50 или 1*50' });
+  const q = h('input', { class: 'pl-qty', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '1' });
+  const us = h('select', { class: 'pl-unit' });
   const pr = h('input', { class: 'pl-price', type: 'text', inputmode: 'decimal', autocomplete: 'off' });
   const am = h('input', { class: 'pl-amount', type: 'text', inputmode: 'decimal', autocomplete: 'off' });
   const del = h('button', { type: 'button', class: 'ghost', 'aria-label': 'Убрать' }, '×');
-  const unitLabel = h('span', {}, 'Цена за ед.');
+  const priceLabel = h('span', {}, 'Цена за ед.');
   const hint = h('span', { class: 'pl-hint sub' });
   const row = h('div', { class: 'pline' }, sel, del,
     h('div', { class: 'pl-fields' },
       h('div', { class: 'pf' }, h('span', {}, 'Количество'), q),
-      h('div', { class: 'pf' }, unitLabel, pr),
+      h('div', { class: 'pf' }, h('span', {}, 'Единица'), us),
+      h('div', { class: 'pf' }, priceLabel, pr),
       h('div', { class: 'pf' }, h('span', {}, 'Сумма'), am)),
     hint);
   row.dataset.src = 'price';
-  const unitName = () => { const r = rawById(sel.value); return r ? r['Ед.'] : 'ед.'; };
-  // Вводишь количество и либо цену за единицу, либо сумму за всю позицию: второе считается само
+  const raw = () => rawById(sel.value);
+  const factor = () => { const r = raw(), pk = r && packOf(r); return us.value === 'pack' && pk ? pk.size : 1; };
+  const unitName = () => (us.options[us.selectedIndex] ? us.options[us.selectedIndex].textContent : '');
+  const fillUnits = keep => {
+    const r = raw(), pk = r ? packOf(r) : null, old = keep ? us.value : '';
+    us.replaceChildren(...(pk
+      ? [h('option', { value: 'pack' }, pk.name), h('option', { value: 'base' }, r['Ед.'])]
+      : [h('option', { value: 'base' }, r ? r['Ед.'] : 'ед.')]));
+    if (old && [...us.options].some(o => o.value === old)) us.value = old;
+  };
+  // Вводишь количество и либо цену за единицу, либо общую сумму: второе считается само
   const recalc = from => {
     if (from) row.dataset.src = from;
-    const qty = calcQty(q.value);
-    unitLabel.textContent = `Цена за ${unitName()}`;
+    const qty = num(q.value);
+    priceLabel.textContent = `Цена за ${unitName()}`;
     if (qty > 0) {
       if (row.dataset.src === 'sum') {
         const sum = num(am.value);
-        pr.value = sum >= 0 ? String(round4(sum / qty)).replace('.', ',') : '';
+        pr.value = sum >= 0 ? fmtIn(round4(sum / qty)) : '';
       } else {
         const price = num(pr.value);
-        am.value = price >= 0 ? String(round2(qty * price)).replace('.', ',') : '';
+        am.value = price >= 0 ? fmtIn(round2(qty * price)) : '';
       }
     }
-    hint.textContent = qty > 0 && /[*x×х]/i.test(q.value) ? `Количество: ${fmt(qty)} ${unitName()}` : '';
+    const r = raw(), base = qty > 0 ? qty * factor() : 0, total = num(am.value);
+    hint.textContent = r && base > 0
+      ? `На склад придёт: ${fmt(base)} ${r['Ед.']}` + (total >= 0 ? ` · ${fmt(round4(total / base))} за ${r['Ед.']}` : '')
+      : '';
     updateTotal();
   };
+  row.baseQty = () => { const qty = num(q.value); return qty > 0 ? qty * factor() : NaN; };
+  row.refresh = () => { fillUnits(true); recalc(); };
   q.addEventListener('input', () => recalc());
+  us.addEventListener('change', () => recalc());
   pr.addEventListener('input', () => recalc('price'));
   am.addEventListener('input', () => recalc('sum'));
-  sel.addEventListener('change', () => recalc());
+  sel.addEventListener('change', () => { fillUnits(false); recalc(); });
   del.addEventListener('click', () => { row.remove(); updateTotal(); });
+  fillUnits(false);
   $('#p-lines').append(row);
   recalc();
 }
@@ -157,7 +216,7 @@ function updateTotal() {
 
 async function addPurchase() {
   const lines = [...document.querySelectorAll('#p-lines .pline')].map(r => {
-    const qty = calcQty(r.querySelector('.pl-qty').value);
+    const qty = r.baseQty();
     const sum = num(r.querySelector('.pl-amount').value);
     return { rawId: r.querySelector('.pl-raw').value, qty, sum: round2(sum), price: qty > 0 ? round4(sum / qty) : NaN };
   });
@@ -717,6 +776,10 @@ function init() {
   $('#e-date').value = today();
   $('#e-cat').addEventListener('change', () => { $('#e-eq-wrap').hidden = $('#e-cat').value !== 'Ремонт'; });
   $('#btn-expense').addEventListener('click', addExpense);
+
+  $('#n-packed').addEventListener('change', togglePack);
+  $('#n-unit').addEventListener('change', togglePack);
+  $('#btn-cancelraw').addEventListener('click', () => { resetRawForm(); $('#raw-panel').open = false; });
 
   show(c.url && c.key ? (localStorage.getItem('last_view') || 'orders') : 'settings');
 

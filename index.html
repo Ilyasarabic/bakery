@@ -79,22 +79,35 @@
       <label for="p-supplier">Поставщик (необязательно)</label>
       <input id="p-supplier" type="text" autocomplete="off">
       <label>Товары</label>
-      <p class="sub">Впиши количество и либо цену за единицу, либо сумму за всю позицию: второе посчитается само. Для мешков можно писать, например, 2*50.</p>
+      <p class="sub">Выбери товар, укажи, сколько купили и сколько за это заплатили. Цена за единицу и количество на склад посчитаются сами.</p>
       <div id="p-lines"></div>
       <button id="btn-pline" type="button" class="ghost">+ Добавить товар</button>
       <div class="ptotal"><span>Итого</span><strong id="p-total">0</strong></div>
       <button id="btn-purchase" type="button" class="primary">Записать закупку</button>
     </details>
 
-    <details class="panel">
-      <summary>Добавить новое сырьё</summary>
+    <details class="panel" id="raw-panel">
+      <summary id="raw-summary">Добавить новое сырьё</summary>
+      <input type="hidden" id="n-id">
       <label for="n-name">Название</label>
       <input id="n-name" type="text" autocomplete="off" placeholder="Мука «Терек»">
-      <label for="n-unit">Единица измерения</label>
+      <label for="n-unit">В чём считаем остаток на складе</label>
       <select id="n-unit"><option>кг</option><option>л</option><option>шт</option></select>
+      <label for="n-packed">Как вы это покупаете</label>
+      <select id="n-packed">
+        <option value="no">В килограммах, литрах или штуках</option>
+        <option value="yes">Упаковками (мешок, коробка, канистра)</option>
+      </select>
+      <div id="n-pack-wrap" hidden>
+        <label for="n-pack-name">Как называется упаковка</label>
+        <input id="n-pack-name" type="text" autocomplete="off" placeholder="мешок">
+        <label for="n-pack-size" id="n-pack-size-label">Сколько кг в одной упаковке</label>
+        <input id="n-pack-size" type="text" inputmode="decimal" autocomplete="off" placeholder="50">
+      </div>
       <label for="n-min">Когда напомнить докупить (остаток ниже)</label>
       <input id="n-min" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
-      <button id="btn-newraw" type="button" class="primary">Добавить сырьё</button>
+      <button id="btn-newraw" type="button" class="primary">Сохранить сырьё</button>
+      <button id="btn-cancelraw" type="button" class="ghost">Отмена</button>
     </details>
     <p id="raw-status" role="status"></p>
   </section>
