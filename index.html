@@ -72,6 +72,15 @@
   <section id="view-raw" class="view">
     <div id="raw-list"></div>
 
+    <details class="panel" id="ra-panel">
+      <summary>Добавить сырьё</summary>
+      <p class="sub">Впиши сразу все продукты, каждый в своей строке. Упаковку заполняй, только если покупаешь мешками, коробками и т. п.</p>
+      <div id="ra-lines"></div>
+      <button id="btn-ra-add" type="button" class="ghost">+ Ещё строка</button>
+      <button id="btn-ra-save" type="button" class="primary">Сохранить список</button>
+      <p id="ra-status" role="status"></p>
+    </details>
+
     <details class="panel">
       <summary>Записать закупку</summary>
       <label for="p-date">Дата</label>
@@ -86,8 +95,8 @@
       <button id="btn-purchase" type="button" class="primary">Записать закупку</button>
     </details>
 
-    <details class="panel" id="raw-panel">
-      <summary id="raw-summary">Добавить новое сырьё</summary>
+    <details class="panel" id="raw-panel" hidden>
+      <summary id="raw-summary">Изменить сырьё</summary>
       <input type="hidden" id="n-id">
       <label for="n-name">Название</label>
       <input id="n-name" type="text" autocomplete="off" placeholder="Мука «Терек»">
@@ -108,6 +117,7 @@
       <input id="n-min" type="text" inputmode="decimal" autocomplete="off" placeholder="0">
       <button id="btn-newraw" type="button" class="primary">Сохранить сырьё</button>
       <button id="btn-cancelraw" type="button" class="ghost">Отмена</button>
+      <button id="btn-delraw" type="button" class="ghost danger">Удалить сырьё</button>
     </details>
     <p id="raw-status" role="status"></p>
   </section>

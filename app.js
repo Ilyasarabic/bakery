@@ -97,7 +97,9 @@ function resetRawForm() {
   $('#n-unit').value = 'кг';
   $('#n-packed').value = 'no';
   togglePack();
-  $('#raw-summary').textContent = 'Добавить новое сырьё';
+  $('#raw-summary').textContent = 'Изменить сырьё';
+  $('#raw-panel').hidden = true;
+  $('#raw-panel').open = false;
 }
 
 function editRaw(r) {
@@ -111,6 +113,7 @@ function editRaw(r) {
   togglePack();
   $('#raw-summary').textContent = 'Изменить: ' + r['Название'];
   const d = $('#raw-panel');
+  d.hidden = false;
   d.open = true;
   d.scrollIntoView({ behavior: 'smooth' });
 }
@@ -720,6 +723,73 @@ async function placeReturn() {
   } finally { btn.disabled = false; }
 }
 
+// ---------- Сырьё: добавление списком и удаление ----------
+
+function addRawRow() {
+  const name = h('input', { class: 'rl-name', type: 'text', autocomplete: 'off', placeholder: 'Название, например: Дрожжи' });
+  const unit = h('select', { class: 'rl-unit' }, h('option', {}, 'кг'), h('option', {}, 'л'), h('option', {}, 'шт'));
+  const min = h('input', { class: 'rl-min', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0' });
+  const pname = h('input', { class: 'rl-pname', type: 'text', autocomplete: 'off', placeholder: 'мешок' });
+  const psize = h('input', { class: 'rl-psize', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '50' });
+  const del = h('button', { type: 'button', class: 'ghost', 'aria-label': 'Убрать строку' }, '×');
+  const sizeLabel = h('span', {}, 'В упаковке, кг');
+  const row = h('div', { class: 'pline' }, name, del,
+    h('div', { class: 'pl-fields' },
+      h('div', { class: 'pf' }, h('span', {}, 'Единица'), unit),
+      h('div', { class: 'pf' }, h('span', {}, 'Мин. остаток'), min),
+      h('div', { class: 'pf' }, h('span', {}, 'Упаковка'), pname),
+      h('div', { class: 'pf' }, sizeLabel, psize)));
+  unit.addEventListener('change', () => { sizeLabel.textContent = `В упаковке, ${unit.value}`; });
+  del.addEventListener('click', () => row.remove());
+  $('#ra-lines').append(row);
+}
+
+async function saveRawList() {
+  const rows = [...document.querySelectorAll('#ra-lines .pline')].map(r => ({
+    name: r.querySelector('.rl-name').value.trim(),
+    unit: r.querySelector('.rl-unit').value,
+    min: num(r.querySelector('.rl-min').value) || 0,
+    pname: r.querySelector('.rl-pname').value.trim(),
+    psize: num(r.querySelector('.rl-psize').value)
+  })).filter(x => x.name);
+  if (!rows.length) return setStatus('#ra-status', 'Впишите хотя бы одно название.', 'bad');
+  const bad = rows.find(x => (x.pname && !(x.psize > 0)) || (!x.pname && x.psize > 0));
+  if (bad) return setStatus('#ra-status', `«${bad.name}»: для упаковки укажите и название, и сколько в ней.`, 'bad');
+  const norm = t => String(t).toLowerCase().replace(/\s+/g, ' ').trim();
+  const have = new Set(state.raw.map(r => norm(r['Название'])));
+  const dup = rows.filter((x, i) => have.has(norm(x.name)) || rows.findIndex(y => norm(y.name) === norm(x.name)) !== i);
+  if (dup.length) return setStatus('#ra-status', 'Такое сырьё уже есть: ' + dup.map(x => x.name).join(', ') + '.', 'bad');
+  const btn = $('#btn-ra-save');
+  btn.disabled = true;
+  setStatus('#ra-status', 'Сохраняю…');
+  try {
+    await api('addMany', { sheet: 'Сырьё', rows: rows.map(x => ({
+      'Название': x.name, 'Ед.': x.unit, 'Остаток': 0, 'Мин. остаток': x.min, 'Цена за ед.': 0,
+      'Упаковка': x.pname, 'В упаковке': x.pname ? x.psize : '' })) });
+    $('#ra-lines').replaceChildren();
+    for (let i = 0; i < 3; i++) addRawRow();
+    setStatus('#ra-status', `Добавлено позиций: ${rows.length}.`, 'ok');
+    loadRaw();
+  } catch (e) {
+    setStatus('#ra-status', e.message, 'bad');
+  } finally { btn.disabled = false; }
+}
+
+async function deleteRawItem() {
+  const id = $('#n-id').value;
+  if (!id) return;
+  const r = state.raw.find(x => String(x['ID']) === String(id));
+  const bal = r ? Number(r['Остаток']) || 0 : 0;
+  const msg = `Удалить «${r ? r['Название'] : ''}» из списка сырья?` + (bal > 0 ? ` На складе ещё ${fmt(bal)} ${r['Ед.']}.` : '');
+  if (!confirm(msg)) return;
+  try {
+    await api('deleteRaw', { id });
+    resetRawForm();
+    setStatus('#raw-status', 'Сырьё удалено.', 'ok');
+    loadRaw();
+  } catch (e) { setStatus('#raw-status', e.message, 'bad'); }
+}
+
 // ---------- Запуск ----------
 
 function init() {
@@ -780,6 +850,11 @@ function init() {
   $('#n-packed').addEventListener('change', togglePack);
   $('#n-unit').addEventListener('change', togglePack);
   $('#btn-cancelraw').addEventListener('click', () => { resetRawForm(); $('#raw-panel').open = false; });
+
+  for (let i = 0; i < 3; i++) addRawRow();
+  $('#btn-ra-add').addEventListener('click', addRawRow);
+  $('#btn-ra-save').addEventListener('click', saveRawList);
+  $('#btn-delraw').addEventListener('click', deleteRawItem);
 
   show(c.url && c.key ? (localStorage.getItem('last_view') || 'orders') : 'settings');
 
